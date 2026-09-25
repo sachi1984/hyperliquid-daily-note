@@ -1,0 +1,94 @@
+name: Daily Hyperliquid Note
+
+on:
+  schedule:
+    # 07:30 JST = 22:30 UTC (前日)
+    - cron: "30 22 * * *"
+  workflow_dispatch: {}
+    # Actionsタブから手動実行するとテストできます
+
+permissions:
+  contents: read
+
+jobs:
+  generate-and-post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Clone & build note-com-mcp
+        run: |
+          git clone https://github.com/shimayuz/note-com-mcp.git mcp/note-com-mcp
+          cd mcp/note-com-mcp
+          npm install
+          npx playwright install --with-deps chromium
+          npm run build
+          # ビルド後の起動エントリが dist/index.js でない場合は
+          # package.json の "main" フィールドを確認し、下の .mcp.json の args を合わせて修正してください
+
+      - name: Run Claude Code (fetch price + curate news + post draft to note)
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: >-
+            --mcp-config .mcp.json
+            --allowedTools "Bash,WebSearch,mcp__note-com"
+            --permission-mode bypassPermissions
+            --model claude-sonnet-4-6
+          prompt: |
+            あなたは「今日のHyperliquid」というnote記事を毎日自動生成・下書き投稿するエージェントです。
+            以下の手順を順番に実行してください。エラーが出た場合は途中で止めず、
+            可能な範囲で処理を続け、最後に何が失敗したかを明確に報告してください。
+
+            ## 手順1: HYPE価格データの取得
+            Bashツールでcurlを使い、Hyperliquid公式APIから価格を取得してください。
+
+            ```
+            curl -s -X POST https://api.hyperliquid.xyz/info \
+              -H "Content-Type: application/json" \
+              -d '{"type":"metaAndAssetCtxs"}'
+            ```
+
+            レスポンスは `[meta, assetCtxs]` の配列です。`meta.universe` の中から
+            `name` が `"HYPE"` である要素のインデックスを探し、`assetCtxs` の同じ
+            インデックスにある `markPx`(現在値)と `prevDayPx`(24時間前の値)を
+            取得してください。前日比(%)を計算してください。
+            jqが使えるので `jq` で抽出すると確実です。
+
+            ## 手順2: 今日のHyperliquid関連ニュースを収集
+            WebSearchツールで、直近24時間以内のHyperliquid関連ニュース
+            (英語・日本語どちらも)を検索してください。目安として3〜5件、
+            プロダクトアップデート・大口動向・エコシステム系ニュース・
+            相場に影響しそうな出来事を優先して拾ってください。
+            出典が曖昧なもの、真偽不明な噂は採用しないでください。
+
+            ## 手順3: note記事の執筆
+            以下の構成でMarkdown形式の記事を書いてください。
+
+            - タイトル: 「今日のHyperliquid」+ 日付(YYYY年M月D日)
+            - 冒頭: HYPEの現在価格と前日比(%)を明記(上昇は🔺、下落は🔻などで視覚的に)
+            - 本文: 手順2で集めたニュースを2〜4行程度で要約しながら箇条書きで紹介。
+              各ニュースの出典(メディア名)も明記
+            - 末尾: 「本記事は情報提供を目的としており、投資助言ではありません」
+              の一文を必ず入れる
+            - 文字数の目安: 800〜1200字程度
+            - 事実に基づかない推測や誇張した価格予想は書かない
+
+            ## 手順4: noteへの下書き投稿
+            note-com-mcpのツールを使って、作成した記事を**下書き(非公開)として**
+            noteに保存してください。**絶対に公開状態にはしないでください。**
+            まず利用可能なツール一覧を確認し、記事作成・下書き保存に対応する
+            ツールを使ってください。タイトルと本文を渡して実行してください。
+
+            ## 手順5: 結果報告
+            最後に、以下を簡潔にまとめて出力してください。
+            - HYPEの価格と前日比
+            - 採用したニュースの見出し一覧
+            - note下書きの投稿が成功したか、失敗した場合はエラー内容
