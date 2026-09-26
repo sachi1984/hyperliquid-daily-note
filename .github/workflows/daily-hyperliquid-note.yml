@@ -42,8 +42,11 @@ jobs:
           cd mcp/note-com-mcp
           NOTE_EMAIL="${{ secrets.NOTE_EMAIL }}" NOTE_PASSWORD="${{ secrets.NOTE_PASSWORD }}" timeout 8 node dist/index.js 2>&1 || true
 
-      - name: Run Claude Code (fetch price + curate news + post draft to note)
+       - name: Run Claude Code (fetch price + curate news + post draft to note)
         uses: anthropics/claude-code-action@v1
+        env:
+          NOTE_EMAIL: ${{ secrets.NOTE_EMAIL }}
+          NOTE_PASSWORD: ${{ secrets.NOTE_PASSWORD }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           show_full_output: true
