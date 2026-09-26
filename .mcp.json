@@ -2,7 +2,7 @@
   "mcpServers": {
     "note-com": {
       "command": "node",
-      "args": ["mcp/note-com-mcp/dist/index.js"],
+      "args": ["mcp/note-com-mcp/build/note-mcp-server.js"],
       "env": {
         "NOTE_EMAIL": "${NOTE_EMAIL}",
         "NOTE_PASSWORD": "${NOTE_PASSWORD}"
