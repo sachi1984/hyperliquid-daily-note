@@ -7,56 +7,29 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 jobs:
   generate-and-post:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - name: Checkout this repo
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Clone & build note-com-mcp
-        run: |
-          git clone https://github.com/shimayuz/note-com-mcp.git mcp/note-com-mcp
-          cd mcp/note-com-mcp
-          npm install
-          npx playwright install --with-deps chromium
-          npm run build
-
-      - name: Debug note-com-mcp build output
-        run: |
-          echo "--- package.json ---"
-          cat mcp/note-com-mcp/package.json
-          echo "--- build directory ---"
-          ls -la mcp/note-com-mcp/build || echo "no build directory found"
-          echo "--- Manual start attempt (20s timeout) ---"
-          cd mcp/note-com-mcp
-          NOTE_EMAIL="${{ secrets.NOTE_EMAIL }}" NOTE_PASSWORD="${{ secrets.NOTE_PASSWORD }}" timeout 60 node build/note-mcp-server.js 2>&1 || true
-
-      - name: Run Claude Code (fetch price + curate news + post draft to note)
+      - name: Run Claude Code (fetch price + curate news + save draft)
         uses: anthropics/claude-code-action@v1
-        env:
-          NOTE_EMAIL: ${{ secrets.NOTE_EMAIL }}
-          NOTE_PASSWORD: ${{ secrets.NOTE_PASSWORD }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           show_full_output: true
           claude_args: >-
-            --mcp-config .mcp.json
-            --allowedTools "Bash,WebSearch,mcp__note-com"
+            --allowedTools "Bash,WebSearch,Write"
             --permission-mode bypassPermissions
             --model claude-sonnet-4-6
           prompt: |
-            あなたは「今日のHyperliquid」というnote記事を毎日自動生成・下書き投稿するエージェントです。
-            以下の手順を順番に実行してください。エラーが出た場合は途中で止めず、
+            あなたは「今日のHyperliquid」というnote記事を毎日自動生成するエージェントです。
+            以下の手順を順番に実行してください。エラーが出ても途中で止めず、
             可能な範囲で処理を続け、最後に何が失敗したかを明確に報告してください。
 
             手順1: HYPE価格データの取得
@@ -67,7 +40,7 @@ jobs:
             手順2: 今日のHyperliquid関連ニュースを収集
             WebSearchツールで、直近24時間以内のHyperliquid関連ニュース(英語・日本語どちらも)を検索してください。目安として3〜5件、プロダクトアップデート・大口動向・エコシステム系ニュース・相場に影響しそうな出来事を優先して拾ってください。出典が曖昧なもの、真偽不明な噂は採用しないでください。
 
-            手順3: note記事の執筆
+            手順3: note記事の執筆と保存
             以下の構成でMarkdown形式の記事を書いてください。
             タイトル: 「今日のHyperliquid」+ 日付(YYYY年M月D日)
             冒頭: HYPEの現在価格と前日比(%)を明記(上昇は上矢印、下落は下矢印などで視覚的に)
@@ -76,11 +49,15 @@ jobs:
             文字数の目安: 800〜1200字程度
             事実に基づかない推測や誇張した価格予想は書かない
 
-            手順4: noteへの下書き投稿
-            note-com-mcpのツールを使って、作成した記事を下書き(非公開)としてnoteに保存してください。絶対に公開状態にはしないでください。まず利用可能なツール一覧を確認し、記事作成・下書き保存に対応するツールを使ってください。タイトルと本文を渡して実行してください。
+            この記事を drafts/YYYY-MM-DD-hyperliquid.md というファイル名で保存してください(YYYY-MM-DDは今日の日付)。drafts フォルダがなければ作成してください。
+            保存後、以下のコマンドでこのファイルだけをリポジトリにコミット・プッシュしてください。
+            git add drafts/
+            git commit -m "Add daily Hyperliquid note draft for YYYY-MM-DD"
+            git push
 
-            手順5: 結果報告
+            手順4: 結果報告
             最後に、以下を簡潔にまとめて出力してください。
             HYPEの価格と前日比
             採用したニュースの見出し一覧
-            note下書きの投稿が成功したか、失敗した場合はエラー内容
+            保存したファイルのパス
+            コミット・プッシュが成功したか
