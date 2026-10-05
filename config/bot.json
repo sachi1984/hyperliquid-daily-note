@@ -1,0 +1,22 @@
+{
+  "alert": {
+    "coin": "HYPE",
+    "threshold_pct": 1.0,
+    "window_minutes": 60,
+    "cooldown_minutes": 120
+  },
+  "follow": {
+    "daily_limit": 10,
+    "min_sleep_sec": 20,
+    "max_sleep_sec": 180,
+    "queries": ["Hyperliquid lang:ja", "HYPE ハイパーリキッド lang:ja"]
+  },
+  "repost": {
+    "daily_limit": 3,
+    "queries": ["Hyperliquid -is:retweet -is:reply lang:ja", "Hyperliquid HYPE -is:retweet -is:reply lang:en"],
+    "min_likes": 5
+  },
+  "post": {
+    "max_len": 270
+  }
+}

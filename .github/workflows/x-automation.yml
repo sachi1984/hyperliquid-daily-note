@@ -1,0 +1,57 @@
+name: X Automation
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # 価格アラート(判定は保存済み価格との比較)
+    - cron: "40 22 * * *"    # 07:40 JST 日次投稿
+    - cron: "0 3,9 * * *"    # 12:00/18:00 JST リポスト
+    - cron: "17 1 * * *"     # 10:17 JST 自動フォロー
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "alert / post / repost / follow"
+        required: true
+        default: "alert"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: x-automation
+  cancel-in-progress: false
+
+env:
+  # Repository Variables で DRY_RUN=false にするまで外部書き込みはしない
+  DRY_RUN: ${{ vars.DRY_RUN || 'true' }}
+  KILL_SWITCH: ${{ vars.KILL_SWITCH || '' }}
+  X_API_KEY: ${{ secrets.X_API_KEY }}
+  X_API_SECRET: ${{ secrets.X_API_SECRET }}
+  X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+  X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Decide job
+        id: j
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then J="${{ inputs.job }}"
+          else case "${{ github.event.schedule }}" in
+            "*/15 * * * *") J=price_alert;; "40 22 * * *") J=daily_post;;
+            "0 3,9 * * *") J=repost;; "17 1 * * *") J=follow;; esac; fi
+          case "$J" in alert) J=price_alert;; post) J=daily_post;; esac
+          echo "job=$J" >> "$GITHUB_OUTPUT"
+      - name: Run
+        run: python -m bot.${{ steps.j.outputs.job }}
+      - name: Commit state
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add state/
+          git diff --cached --quiet || (git commit -m "Update bot state" && git pull --rebase origin ${{ github.ref_name }} && git push)
