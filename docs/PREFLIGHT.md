@@ -2,8 +2,9 @@
 
 ## 1. X APIの認証情報(Secrets)
 1. https://developer.x.com でDeveloperアカウント登録→Projectとアプリを作成。
-2. アプリの **User authentication settings** で App permissions を **Read and write** にする(Type: Web App/Automated App)。
-3. **Keys and tokens** で次を発行(権限変更後に必ず再発行):
+2. アプリの **User authentication settings** で App permissions を **Read and write** にして保存する(Type: Web App/Automated App)。
+3. **必ず手順2の後に** **Keys and tokens** でアクセストークンを発行する。
+   ⚠ 権限を変更する前に発行したAccess Token/Secretは**読み取り専用のまま**で、権限を変えても自動では書き込み可能にならない(投稿時に403になる)。権限変更後は **Regenerate** で再発行し、Secretsも新しい値に更新すること。発行するもの:
    - API Key / API Key Secret
    - Access Token / Access Token Secret(自分の運用アカウントで)
 4. GitHub → Settings → Secrets and variables → Actions → **Secrets** に登録:

@@ -63,6 +63,14 @@ class Misc(unittest.TestCase):
         finally:
             del os.environ["KILL_SWITCH"]
 
+    def test_dry_run_without_creds_succeeds(self):
+        import subprocess, sys
+        env = {k: v for k, v in os.environ.items() if not k.startswith("X_")}
+        env.update(DRY_RUN="true", STATE_DIR="/tmp/_st")
+        for m in ("daily_post", "repost", "follow"):
+            r = subprocess.run([sys.executable, "-m", "bot." + m], env=env, capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr); self.assertIn("認証情報なし", r.stdout)
+
     def test_dry_run_default(self):
         os.environ.pop("DRY_RUN", None)
         self.assertTrue(c.dry_run())

@@ -109,9 +109,15 @@ def get_client(real):
     return XClient() if real else None
 
 
+def creds_present():
+    return all(os.environ.get(k) for k in ("X_API_KEY", "X_API_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_SECRET"))
+
+
 def guard(tag):
-    """KILL_SWITCH時はTrue(処理を中止すべき)。"""
+    """KILL_SWITCH時はTrue(処理を中止すべき)。DRY_RUNで認証情報なしなら通知のみ(失敗にしない)。"""
     if kill_switch():
         log(tag, "KILL_SWITCH有効のため何もせず終了")
         return True
+    if dry_run() and not creds_present():
+        log(tag, "X認証情報なし(DRY_RUN): X APIへの接続はスキップし、ログ出力のみで続行")
     return False
