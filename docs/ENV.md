@@ -7,4 +7,4 @@
 | `ANTHROPIC_API_KEY` | Secret | 記事生成ワークフロー用 |
 | `DRY_RUN` | Variable | 既定 true。`false` にした時だけ実際に投稿/リポスト/フォロー |
 | `KILL_SWITCH` | Variable | `true` で全ボットジョブが何もせず終了(緊急停止) |
-| `STATE_DIR` | 任意 | 状態ファイルの保存先(既定 `state/`) |
+| `STATE_DIR` | 任意 | 状態ファイルの保存先(既定 `state/`、Actionsでは `bot-state` ブランチ) |

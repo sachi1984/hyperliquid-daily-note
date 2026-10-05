@@ -16,6 +16,18 @@ def fetch_price(coin="HYPE", opener=urllib.request.urlopen):
     raise RuntimeError(f"{coin}が見つかりません")
 
 
+def fetch_recent_points(coin="HYPE", minutes=100, interval="5m", opener=urllib.request.urlopen):
+    """candleSnapshotで直近の終値列を取得 -> [{t,p}]。保存済み価格に頼らず1時間前と比較できる。"""
+    end = int(time.time() * 1000)
+    body = {"type": "candleSnapshot", "req": {"coin": coin, "interval": interval,
+                                              "startTime": end - minutes * 60 * 1000, "endTime": end}}
+    req = urllib.request.Request(API, data=json.dumps(body).encode(),
+                                 headers={"Content-Type": "application/json"}, method="POST")
+    with opener(req, timeout=20) as r:
+        candles = json.loads(r.read().decode())
+    return [{"t": int(k["T"] // 1000), "p": float(k["c"])} for k in candles]
+
+
 def evaluate(history, now, price, cfg, last_alert):
     """history: [{t,p}]。戻り値: (alert|None, history_new)。alert={direction,change_pct,text}"""
     win = cfg["window_minutes"] * 60
@@ -44,21 +56,21 @@ def main():
     cfg = c.load_config()["alert"]
     now = int(time.time())
     price = fetch_price(cfg["coin"])
-    st = c.load_state("price_history.json", {"history": [], "last_alert": None})
-    alert, hist = evaluate(st["history"], now, price, cfg, st["last_alert"])
-    st["history"] = hist
-    c.log("alert", f"{cfg['coin']}={price} 履歴{len(hist)}件")
-    if alert:
-        c.log("alert", f"検知: {alert['direction']} {alert['change_pct']:+.2f}%")
-        if c.dry_run():
-            c.log("alert", f"[DRY_RUN] 投稿内容:\n{alert['text']}")
-        else:
-            c.get_client(True).post(alert["text"])
-            c.log("alert", "投稿しました")
-        st["last_alert"] = {"t": now, "direction": alert["direction"]}
-    else:
+    history = fetch_recent_points(cfg["coin"])
+    st = c.load_state("alert_state.json", {"last_alert": None})
+    alert, _ = evaluate(history, now, price, cfg, st["last_alert"])
+    c.log("alert", f"{cfg['coin']}={price} 参照点{len(history)}件")
+    if not alert:
         c.log("alert", "アラート条件なし")
-    c.save_state("price_history.json", st)
+        return 0
+    c.log("alert", f"検知: {alert['direction']} {alert['change_pct']:+.2f}%")
+    if c.dry_run():
+        c.log("alert", f"[DRY_RUN] 投稿内容:\n{alert['text']}")
+        return 0
+    c.get_client(True).post(alert["text"])
+    c.log("alert", "投稿しました")
+    # クールダウン情報だけを保存(アラート時のみ書き込むのでコミットは稀)
+    c.save_state("alert_state.json", {"last_alert": {"t": now, "direction": alert["direction"]}})
     return 0
 
 
